@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+.yarn-cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Runtime / temp
+tmp/
+temp/
+.tmp/
+.cache/
+.DS_Store
+
+# Stress API generated files
+stress-data/
+data/
+*.dat
+*.bin
+
+# Docker
+docker-compose.override.yml
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Coverage / tests
+coverage/
+.nyc_output/
+
+# Coolify / local deploy artifacts
+.artifacts/

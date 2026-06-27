@@ -575,7 +575,7 @@ async function runJob(job: Job) {
     await Promise.allSettled(tasks);
 
     if (job.abort.signal.aborted) {
-      job.status = job.status === 'stopping' ? 'cancelled' : 'finished';
+      job.status = 'cancelled';
     } else {
       job.status = 'finished';
     }
@@ -733,10 +733,17 @@ app.post('/jobs/:id/stop', async (request: any, reply) => {
     return reply.code(404).send({ error: 'job_not_found' });
   }
 
-  job.status = 'stopping';
+  if (
+    job.status === 'finished' ||
+    job.status === 'failed' ||
+    job.status === 'cancelled'
+  ) {
+    return publicJob(job);
+  }
 
   if (job.timer) {
     clearTimeout(job.timer);
+    job.timer = undefined;
   }
 
   job.abort.abort();
@@ -744,6 +751,13 @@ app.post('/jobs/:id/stop', async (request: any, reply) => {
   for (const worker of job.workers) {
     worker.postMessage('stop');
     worker.terminate().catch(() => undefined);
+  }
+
+  if (job.status === 'scheduled') {
+    job.status = 'cancelled';
+    job.finishedAt = new Date().toISOString();
+  } else {
+    job.status = 'stopping';
   }
 
   return publicJob(job);
