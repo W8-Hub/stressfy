@@ -663,7 +663,38 @@ function publicJob(job: Job) {
 app.get('/health', async () => {
   return {
     ok: true,
+    status: 'healthy',
+    service: 'stress-api',
+    hostname: os.hostname(),
+    uptimeSec: Math.floor(process.uptime()),
     now: new Date().toISOString(),
+    memory: {
+      rssMb: Number((process.memoryUsage().rss / MB).toFixed(2)),
+      heapUsedMb: Number((process.memoryUsage().heapUsed / MB).toFixed(2)),
+      heapTotalMb: Number((process.memoryUsage().heapTotal / MB).toFixed(2))
+    },
+    jobs: {
+      total: jobs.size,
+      scheduled: Array.from(jobs.values()).filter((job) => job.status === 'scheduled').length,
+      running: Array.from(jobs.values()).filter((job) => job.status === 'running').length,
+      stopping: Array.from(jobs.values()).filter((job) => job.status === 'stopping').length,
+      finished: Array.from(jobs.values()).filter((job) => job.status === 'finished').length,
+      failed: Array.from(jobs.values()).filter((job) => job.status === 'failed').length,
+      cancelled: Array.from(jobs.values()).filter((job) => job.status === 'cancelled').length
+    }
+  };
+});
+
+app.get('/healthz', async () => {
+  return {
+    ok: true
+  };
+});
+
+app.get('/ready', async () => {
+  return {
+    ok: true,
+    ready: true,
     hostname: os.hostname(),
     uptimeSec: Math.floor(process.uptime())
   };
