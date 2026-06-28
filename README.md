@@ -9,8 +9,8 @@ estresse sobre um ou mais recursos da máquina por uma duração definida, pode 
 Ideal para validar limites, autoscaling, alertas de monitoramento e comportamento de
 infraestrutura sob pressão.
 
-Construída com [Fastify](https://fastify.dev/) + TypeScript, sem banco de dados — o
-estado dos jobs vive em memória.
+Construída em [Go](https://go.dev/) + [chi](https://github.com/go-chi/chi), sem banco de
+dados — o estado dos jobs vive em memória. Compila para um binário estático único.
 
 ## Recursos
 
@@ -24,9 +24,23 @@ estado dos jobs vive em memória.
 
 ## Início rápido
 
+Requer **Go 1.23+** (apenas para rodar a partir do fonte; o Docker não precisa de Go local).
+
 ```bash
-npm install
-npm run dev        # sobe em http://localhost:3333
+go run ./cmd/stressfy        # sobe em http://localhost:3333
+```
+
+Configure a porta ou os tetos via variáveis de ambiente (veja [Configuração](#configuração)):
+
+```bash
+PORT=8080 MAX_DURATION_SEC=300 go run ./cmd/stressfy
+```
+
+Ou compile o binário:
+
+```bash
+go build -o stressfy ./cmd/stressfy
+./stressfy
 ```
 
 Ou via Docker:
@@ -41,6 +55,27 @@ Verifique se está no ar:
 ```bash
 curl http://localhost:3333/health
 ```
+
+## Desenvolvimento
+
+```bash
+go run ./cmd/stressfy                  # roda a API localmente
+go build -o stressfy ./cmd/stressfy    # compila o binário
+go vet ./...                           # análise estática
+gofmt -l .                             # lista arquivos fora do padrão (use -w para corrigir)
+```
+
+### Testes
+
+```bash
+go test ./...            # roda toda a suíte
+go test -race ./...      # com detector de data races (recomendado)
+go test -cover ./...     # com relatório de cobertura por pacote
+go test ./internal/api   # apenas um pacote
+```
+
+Os testes não dependem de rede externa nem de portas fixas (usam `httptest`) e as cargas
+de stress rodam com durações curtas, então a suíte completa leva ~2s.
 
 ## Uso
 

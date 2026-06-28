@@ -1,20 +1,11 @@
-# Dependencies
-node_modules/
-.pnpm-store/
-.yarn/
-.yarn-cache/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Compiled binary (root only — not the cmd/stressfy package dir)
+/stressfy
 
-# Build output
-dist/
-build/
-out/
-
-# TypeScript
-*.tsbuildinfo
+# Go build/test artifacts
+*.test
+*.out
+coverage.*
+vendor/
 
 # Environment files
 .env
@@ -50,10 +41,6 @@ docker-compose.override.yml
 # OS
 Thumbs.db
 Desktop.ini
-
-# Coverage / tests
-coverage/
-.nyc_output/
 
 # Coolify / local deploy artifacts
 .artifacts/
