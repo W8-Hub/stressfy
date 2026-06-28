@@ -56,6 +56,21 @@ Verifique se está no ar:
 curl http://localhost:3333/health
 ```
 
+## Documentação da API (Swagger)
+
+Com o servidor no ar, a especificação OpenAPI 3.0 e uma UI interativa ficam disponíveis em:
+
+- **`GET /docs`** — Swagger UI (interativo, "Try it out")
+- **`GET /openapi.yaml`** — a especificação OpenAPI 3.0 crua (para Postman, Insomnia,
+  geração de client, etc.)
+
+```bash
+open http://localhost:3333/docs
+```
+
+A spec é mantida em [internal/api/openapi.yaml](internal/api/openapi.yaml) e embutida no
+binário. A página `/docs` carrega os assets do Swagger UI via CDN (no navegador).
+
 ## Desenvolvimento
 
 ```bash
@@ -142,6 +157,8 @@ curl -X POST http://localhost:3333/jobs/<id>/stop   # cancela/para
 | `POST` | `/mock/status` | Agenda a troca do status-code |
 | `GET` | `/mock/error` | Sempre um erro 5xx aleatório |
 | `GET` | `/mock/latency?ms=` | Responde 200 após uma latência proposital |
+| `GET` | `/docs` | Swagger UI interativo |
+| `GET` | `/openapi.yaml` | Especificação OpenAPI 3.0 |
 
 ## Endpoints de mock / caos
 

@@ -28,5 +28,8 @@ func (s *Server) Router() chi.Router {
 	r.Get("/mock/error", s.mockError)
 	r.Get("/mock/latency", s.mockLatency)
 
+	r.Get("/docs", s.docs)
+	r.Get("/openapi.yaml", s.openapiYAML)
+
 	return r
 }

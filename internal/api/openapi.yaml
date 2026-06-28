@@ -1,0 +1,459 @@
+openapi: 3.0.3
+info:
+  title: stressfy API
+  description: |
+    API HTTP para testes de estresse da máquina (CPU, RAM, disco e rede) e
+    endpoints de mock/caos (status-code mockado, erros 5xx, latência proposital).
+
+    **Sem autenticação**: o controle de acesso é responsabilidade do proxy à frente
+    da API (restrição por IP + basic auth).
+
+    Notas:
+    - Campos numéricos do request aceitam número **ou** string numérica.
+    - `POST /jobs` mescla query params e corpo JSON (o corpo tem precedência).
+    - Vários campos têm aliases curtos: `start`/`startAt`, `time`/`durationSec`,
+      `cpu`/`cpuPercent`, `ram`/`ramPercent`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3333
+    description: Local
+
+tags:
+  - name: health
+    description: Liveness / readiness
+  - name: jobs
+    description: Jobs de estresse (CPU, RAM, disco, rede)
+  - name: net
+    description: Helpers de tráfego de rede (par local para stress de rede)
+  - name: mock
+    description: Respostas controladas para testar proxies, monitores e retry
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Status detalhado
+      description: Memória do processo e contagem de jobs por status.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness mínimo
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+  /ready:
+    get:
+      tags: [health]
+      summary: Readiness
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+                  ready: { type: boolean, example: true }
+                  hostname: { type: string }
+                  uptimeSec: { type: integer }
+
+  /jobs:
+    post:
+      tags: [jobs]
+      summary: Cria um job de estresse
+      description: |
+        Todos os campos de carga são opcionais — combine os que quiser; o job só
+        estressa os recursos especificados. Query params também são aceitos e
+        mesclados ao corpo (corpo vence).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StressRequest"
+            examples:
+              cpu:
+                summary: CPU 80% por 60s
+                value: { cpuPercent: 80, durationSec: 60 }
+              ram:
+                summary: 1 GB de RAM por 30s
+                value: { ramMb: 1024, durationSec: 30 }
+              completo:
+                summary: Disco + rede agendado
+                value:
+                  startAt: "2030-01-01T22:00:00"
+                  durationSec: 120
+                  diskWrite: { mb: 2048, mbps: 200, fsync: true }
+                  networkRead: { url: "http://localhost:3333/net/source?mb=1024", mbps: 100 }
+      responses:
+        "201":
+          description: Job criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicJob"
+        "400":
+          description: Request inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags: [jobs]
+      summary: Lista todos os jobs
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicJob"
+
+  /jobs/{id}:
+    get:
+      tags: [jobs]
+      summary: Detalhe de um job
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicJob"
+        "404":
+          description: Job não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{id}/stop:
+    post:
+      tags: [jobs]
+      summary: Cancela/para um job
+      description: |
+        Jobs `scheduled` vão direto para `cancelled`; jobs em execução vão para
+        `stopping` e, quando as cargas encerram, para `cancelled`.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicJob"
+        "404":
+          description: Job não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /net/source:
+    get:
+      tags: [net]
+      summary: Gera tráfego de download
+      description: Stream de N MB; contraparte local para `networkRead`.
+      parameters:
+        - name: mb
+          in: query
+          schema: { type: integer, default: 100 }
+          description: Total a transmitir (MB), limitado por MAX_NET_MB.
+        - name: chunkMb
+          in: query
+          schema: { type: integer, default: 1 }
+          description: Tamanho de cada chunk (MB), 1–16.
+      responses:
+        "200":
+          description: Stream binário
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /net/sink:
+    post:
+      tags: [net]
+      summary: Absorve tráfego de upload
+      description: Drena o corpo da requisição e reporta os bytes recebidos;
+        contraparte local para `networkWrite`.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+                  receivedBytes: { type: integer }
+                  receivedMb: { type: number }
+
+  /mock/status:
+    get:
+      tags: [mock]
+      summary: Retorna o status-code mockado
+      description: |
+        O **HTTP status da resposta é o próprio código mockado** (default 200).
+        O corpo descreve o estado atual e qualquer troca agendada.
+      responses:
+        "200":
+          description: Resposta quando o código mockado é 200 (default)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockState"
+        default:
+          description: Quando configurado, responde com o código mockado (2xx–5xx)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockState"
+    post:
+      tags: [mock]
+      summary: Agenda a troca do status-code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MockSetStatus"
+            examples:
+              imediato:
+                summary: Trocar para 503 agora, reverter em 30s
+                value: { statusCode: 503, durationSec: 30 }
+              agendado:
+                summary: Agendar 500 para o futuro
+                value: { statusCode: 500, startAt: "2030-01-01T00:00:00" }
+      responses:
+        "200":
+          description: Estado após o agendamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockState"
+        "400":
+          description: statusCode ausente/ inválido (fora de 200–599) ou startAt inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /mock/error:
+    get:
+      tags: [mock]
+      summary: Sempre retorna um erro 5xx aleatório
+      description: Escolhe aleatoriamente entre 500, 502, 503 e 504.
+      responses:
+        "500":
+          description: Internal Server Error (simulado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockError"
+        "502":
+          description: Bad Gateway (simulado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockError"
+        "503":
+          description: Service Unavailable (simulado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockError"
+        "504":
+          description: Gateway Timeout (simulado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockError"
+
+  /mock/latency:
+    get:
+      tags: [mock]
+      summary: Responde 200 após latência proposital
+      parameters:
+        - name: ms
+          in: query
+          schema: { type: integer, default: 0 }
+          description: Atraso em milissegundos, limitado por MAX_LATENCY_MS.
+      responses:
+        "200":
+          description: OK (após o atraso)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+                  delayedMs: { type: number }
+
+components:
+  parameters:
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    NumberOrString:
+      description: Número ou string numérica (ambos aceitos).
+      oneOf:
+        - type: number
+        - type: string
+
+    DiskSpec:
+      type: object
+      properties:
+        mb: { $ref: "#/components/schemas/NumberOrString" }
+        mbps: { $ref: "#/components/schemas/NumberOrString" }
+        path: { type: string, description: "Diretório alvo (default: DATA_DIR)" }
+        keepFile: { type: boolean }
+        fsync: { type: boolean }
+
+    NetworkSpec:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+        mb: { $ref: "#/components/schemas/NumberOrString" }
+        mbps: { $ref: "#/components/schemas/NumberOrString" }
+
+    StressRequest:
+      type: object
+      description: |
+        Especificação de um job. Campos numéricos aceitam número ou string.
+        Aliases curtos são equivalentes aos longos.
+      properties:
+        startAt:
+          type: string
+          description: "Início (ISO). Sem fuso, aplica TZ_OFFSET. Default: agora."
+        start: { type: string, description: "Alias de startAt" }
+        durationSec:
+          $ref: "#/components/schemas/NumberOrString"
+        time: { $ref: "#/components/schemas/NumberOrString" }
+        cpuPercent:
+          $ref: "#/components/schemas/NumberOrString"
+        cpu: { $ref: "#/components/schemas/NumberOrString" }
+        ramPercent:
+          $ref: "#/components/schemas/NumberOrString"
+        ram: { $ref: "#/components/schemas/NumberOrString" }
+        ramMb: { $ref: "#/components/schemas/NumberOrString" }
+        diskWrite: { $ref: "#/components/schemas/DiskSpec" }
+        diskRead: { $ref: "#/components/schemas/DiskSpec" }
+        networkWrite: { $ref: "#/components/schemas/NetworkSpec" }
+        networkRead: { $ref: "#/components/schemas/NetworkSpec" }
+
+    PublicMetrics:
+      type: object
+      properties:
+        diskWrittenMb: { type: number }
+        diskReadMb: { type: number }
+        networkWrittenMb: { type: number }
+        networkReadMb: { type: number }
+
+    PublicJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [scheduled, running, stopping, finished, failed, cancelled]
+        createdAt: { type: string, format: date-time }
+        scheduledFor: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        error: { type: string }
+        request: { $ref: "#/components/schemas/StressRequest" }
+        metrics: { $ref: "#/components/schemas/PublicMetrics" }
+
+    Health:
+      type: object
+      properties:
+        ok: { type: boolean }
+        status: { type: string, example: healthy }
+        service: { type: string, example: stress-api }
+        hostname: { type: string }
+        uptimeSec: { type: integer }
+        now: { type: string, format: date-time }
+        memory:
+          type: object
+          properties:
+            rssMb: { type: number }
+            heapUsedMb: { type: number }
+            heapTotalMb: { type: number }
+        jobs:
+          type: object
+          properties:
+            total: { type: integer }
+            scheduled: { type: integer }
+            running: { type: integer }
+            stopping: { type: integer }
+            finished: { type: integer }
+            failed: { type: integer }
+            cancelled: { type: integer }
+
+    MockState:
+      type: object
+      properties:
+        statusCode: { type: integer, example: 200 }
+        scheduledCode: { type: integer, description: "Código de uma troca ainda pendente" }
+        scheduledFor: { type: string, format: date-time }
+        revertAt: { type: string, format: date-time }
+
+    MockSetStatus:
+      type: object
+      required: [statusCode]
+      properties:
+        statusCode:
+          type: integer
+          minimum: 200
+          maximum: 599
+          example: 503
+        startAt:
+          type: string
+          description: "Quando aplicar (sem fuso usa TZ_OFFSET). Default: agora."
+        durationSec:
+          type: number
+          description: "Auto-reverter para 200 após esse tempo. Default: permanente."
+
+    MockError:
+      type: object
+      properties:
+        statusCode: { type: integer, example: 503 }
+        error: { type: string, example: simulated_5xx }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: job_not_found }

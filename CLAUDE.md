@@ -67,6 +67,8 @@ resto vive em `internal/`:
   - `handlers.go` — handlers de `/jobs*`, `/health`, `/healthz`, `/ready`.
   - `nethelpers.go` — `/net/source` e `/net/sink`.
   - `mock_handlers.go` — `/mock/status` (GET/POST), `/mock/error`, `/mock/latency`.
+  - `docs.go` + `openapi.yaml` — spec OpenAPI 3.0 (embutida via `go:embed`) servida em
+    `/openapi.yaml`, e Swagger UI (via CDN) em `/docs`.
   - `router.go` — monta o `chi.Router` com todas as rotas.
 
 ### Endpoints
@@ -86,6 +88,12 @@ resto vive em `internal/`:
 | `POST` | `/mock/status` | Agenda troca do status-code (`statusCode`, `startAt?`, `durationSec?`) |
 | `GET` | `/mock/error` | Sempre um 5xx aleatório (`math/rand` entre 500/502/503/504) |
 | `GET` | `/mock/latency?ms=` | 200 após `ms` de atraso (limitado por `MAX_LATENCY_MS`) |
+| `GET` | `/docs` | Swagger UI (carrega assets via CDN) |
+| `GET` | `/openapi.yaml` | Spec OpenAPI 3.0 (embutida via `go:embed`) |
+
+> **Ao adicionar/alterar uma rota, atualize também [internal/api/openapi.yaml](internal/api/openapi.yaml)**
+> — a spec é escrita à mão (não gerada do código). `docs_test.go` cobre só que ela é
+> servida; valide o YAML com `python3 -c "import yaml;yaml.safe_load(open('internal/api/openapi.yaml'))"`.
 
 ### Convenções importantes
 
