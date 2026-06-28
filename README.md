@@ -138,6 +138,64 @@ curl -X POST http://localhost:3333/jobs/<id>/stop   # cancela/para
 | `POST` | `/jobs/:id/stop` | Cancela/para um job |
 | `GET` | `/net/source?mb=&chunkMb=` | Gera tráfego (contraparte de `networkRead`) |
 | `POST` | `/net/sink` | Absorve tráfego (contraparte de `networkWrite`) |
+| `GET` | `/mock/status` | Responde com o status-code mockado (padrão 200) |
+| `POST` | `/mock/status` | Agenda a troca do status-code |
+| `GET` | `/mock/error` | Sempre um erro 5xx aleatório |
+| `GET` | `/mock/latency?ms=` | Responde 200 após uma latência proposital |
+
+## Endpoints de mock / caos
+
+Além dos jobs de stress, a API expõe endpoints para simular respostas controladas —
+úteis para testar **proxies, health checks, monitores de 5xx, timeouts e lógica de
+retry/backoff** sem precisar derrubar nada de verdade.
+
+### Status-code mockado
+
+`GET /mock/status` responde **com o próprio status-code configurado** (HTTP real, não
+só no corpo) e um JSON descritivo. O padrão é `200`.
+
+```bash
+curl -i http://localhost:3333/mock/status
+# HTTP/1.1 200 OK
+# {"statusCode":200}
+```
+
+`POST /mock/status` **agenda a troca** desse código. Campos:
+
+| Campo | Descrição |
+| --- | --- |
+| `statusCode` | Obrigatório. Código a aplicar (200–599). |
+| `startAt` | Opcional. Quando aplicar (sem fuso usa `TZ_OFFSET`). Padrão: agora. |
+| `durationSec` | Opcional. Auto-reverte para 200 após esse tempo. Padrão: permanente. |
+
+```bash
+# trocar para 503 agora e reverter sozinho após 30s
+curl -XPOST http://localhost:3333/mock/status -d '{"statusCode":503,"durationSec":30}'
+
+# agendar 500 para um horário futuro
+curl -XPOST http://localhost:3333/mock/status -d '{"statusCode":500,"startAt":"2030-01-01T00:00:00"}'
+
+# voltar manualmente ao normal
+curl -XPOST http://localhost:3333/mock/status -d '{"statusCode":200}'
+```
+
+### Erros 5xx aleatórios
+
+`GET /mock/error` retorna **sempre** um erro 5xx (aleatório entre 500, 502, 503 e 504).
+10 requisições resultam em 10 erros 5xx.
+
+```bash
+for i in $(seq 10); do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3333/mock/error; done
+```
+
+### Latência proposital
+
+`GET /mock/latency?ms=N` responde `200` após `N` milissegundos, limitado por
+`MAX_LATENCY_MS`. A espera é cancelada se o cliente desconectar.
+
+```bash
+curl -w "\n%{time_total}s\n" 'http://localhost:3333/mock/latency?ms=1500'
+```
 
 ## Casos de uso
 
@@ -155,6 +213,10 @@ curl -X POST http://localhost:3333/jobs/<id>/stop   # cancela/para
   horários específicos e ensaiar a resposta da equipe e da infraestrutura.
 - **Verificar limites de container** — confirme que limites de CPU/memória (cgroups)
   estão sendo respeitados e que o orquestrador mata/reinicia como configurado.
+- **Testar retry/backoff e circuit breakers** — aponte um serviço para `/mock/error` ou
+  agende um `/mock/status` 503 temporário e valide se o cliente faz retry/abre o circuito.
+- **Validar alertas de 5xx e timeouts de proxy** — use `/mock/error` e `/mock/latency`
+  para disparar alertas de erro/latência e checar limites de timeout do proxy/gateway.
 
 ## Configuração
 
@@ -169,6 +231,7 @@ Variáveis de ambiente (veja [.env.example](.env.example)):
 | `MAX_RAM_PERCENT` | `85` | Teto de RAM por job (%) |
 | `MAX_DISK_MB` | `10240` | Teto de disco por job (MB) |
 | `MAX_NET_MB` | `10240` | Teto de rede por job (MB) |
+| `MAX_LATENCY_MS` | `60000` | Teto de latência do `/mock/latency` (ms) |
 
 ## ⚠️ Aviso de segurança
 

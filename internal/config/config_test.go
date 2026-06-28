@@ -89,4 +89,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.TZOffset != "-03:00" {
 		t.Errorf("TZOffset = %q, want -03:00", cfg.TZOffset)
 	}
+	if cfg.MaxLatencyMS != 60000 {
+		t.Errorf("MaxLatencyMS = %v, want 60000", cfg.MaxLatencyMS)
+	}
 }

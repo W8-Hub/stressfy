@@ -57,11 +57,16 @@ resto vive em `internal/`:
   - `disk.go` — `RunDiskWrite`/`RunDiskRead` (+ seed file) com throttle por `mbps`.
   - `net.go` — `RunNetworkWrite` (POST streaming via `io.Pipe`) e `RunNetworkRead`
     (GET streaming), com throttle.
+- **[internal/mock](internal/mock/controller.go)** — `Controller` thread-safe para os
+  endpoints de mock/caos: guarda o status-code atual (default 200), agenda troca via
+  `time.AfterFunc` (mesmo padrão do store) e auto-reversão para 200. Expõe `Current`,
+  `State`, `Schedule(code, startAt, revertAfter)` e `Reset`.
 - **[internal/api](internal/api/)** — a camada HTTP:
-  - `server.go` — `Server` (cfg + store + runner) e `writeJSON`.
+  - `server.go` — `Server` (cfg + store + runner + `mock.Controller`) e `writeJSON`.
   - `request.go` — `parseRequest`: merge query+body (body vence) → `StressRequest`.
   - `handlers.go` — handlers de `/jobs*`, `/health`, `/healthz`, `/ready`.
   - `nethelpers.go` — `/net/source` e `/net/sink`.
+  - `mock_handlers.go` — `/mock/status` (GET/POST), `/mock/error`, `/mock/latency`.
   - `router.go` — monta o `chi.Router` com todas as rotas.
 
 ### Endpoints
@@ -77,6 +82,10 @@ resto vive em `internal/`:
 | `POST` | `/jobs/{id}/stop` | Cancela/para um job |
 | `GET` | `/net/source?mb=&chunkMb=` | Gera tráfego de download (para `networkRead`) |
 | `POST` | `/net/sink` | Absorve tráfego de upload (para `networkWrite`) |
+| `GET` | `/mock/status` | Responde com o status-code mockado (default 200) + body JSON |
+| `POST` | `/mock/status` | Agenda troca do status-code (`statusCode`, `startAt?`, `durationSec?`) |
+| `GET` | `/mock/error` | Sempre um 5xx aleatório (`math/rand` entre 500/502/503/504) |
+| `GET` | `/mock/latency?ms=` | 200 após `ms` de atraso (limitado por `MAX_LATENCY_MS`) |
 
 ### Convenções importantes
 
@@ -111,8 +120,9 @@ resto vive em `internal/`:
 ## Variáveis de ambiente
 
 Veja [.env.example](.env.example). Controlam porta, diretório de dados e os tetos de
-segurança (`MAX_DURATION_SEC`, `MAX_RAM_PERCENT`, `MAX_DISK_MB`, `MAX_NET_MB`).
-`TZ_OFFSET` é aplicado a timestamps de `startAt` sem fuso explícito.
+segurança (`MAX_DURATION_SEC`, `MAX_RAM_PERCENT`, `MAX_DISK_MB`, `MAX_NET_MB`,
+`MAX_LATENCY_MS`). `TZ_OFFSET` é aplicado a timestamps de `startAt` sem fuso explícito
+(usado tanto pelos jobs quanto pelo agendamento de `/mock/status`).
 
 > Nota: `RunRAM` (limite via cgroups + `/proc`) e a métrica `rssMb` do `/health`
 > dependem do Linux. Em macOS (dev) a alocação por `ramMb` funciona, mas `ramPercent`

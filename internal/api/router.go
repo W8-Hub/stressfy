@@ -23,5 +23,10 @@ func (s *Server) Router() chi.Router {
 	r.Get("/net/source", s.netSource)
 	r.Post("/net/sink", s.netSink)
 
+	r.Get("/mock/status", s.mockStatus)
+	r.Post("/mock/status", s.mockSetStatus)
+	r.Get("/mock/error", s.mockError)
+	r.Get("/mock/latency", s.mockLatency)
+
 	return r
 }

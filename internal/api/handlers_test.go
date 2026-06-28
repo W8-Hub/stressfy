@@ -19,6 +19,7 @@ func testServer() *Server {
 		MaxRAMPercent:  85,
 		MaxDiskMB:      10240,
 		MaxNetMB:       10240,
+		MaxLatencyMS:   60000,
 	}
 	store := job.NewStore()
 	// no-op runner: we test the HTTP contract, not the stress execution.

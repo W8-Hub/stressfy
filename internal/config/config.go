@@ -21,6 +21,7 @@ type Config struct {
 	MaxRAMPercent  float64
 	MaxDiskMB      float64
 	MaxNetMB       float64
+	MaxLatencyMS   float64
 }
 
 // Load reads configuration from the environment, applying the same defaults
@@ -34,6 +35,7 @@ func Load() Config {
 		MaxRAMPercent:  envNumber("MAX_RAM_PERCENT", 85),
 		MaxDiskMB:      envNumber("MAX_DISK_MB", 10240),
 		MaxNetMB:       envNumber("MAX_NET_MB", 10240),
+		MaxLatencyMS:   envNumber("MAX_LATENCY_MS", 60000),
 	}
 }
 

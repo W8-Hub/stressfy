@@ -7,6 +7,7 @@ import (
 
 	"stressfy/internal/config"
 	"stressfy/internal/job"
+	"stressfy/internal/mock"
 )
 
 // Server wires together the HTTP handlers, the job store and configuration.
@@ -15,6 +16,7 @@ type Server struct {
 	store     *job.Store
 	startTime time.Time
 	run       func(*job.Job)
+	mock      *mock.Controller
 }
 
 // NewServer creates a Server. run is invoked when a scheduled job fires
@@ -25,6 +27,7 @@ func NewServer(cfg config.Config, store *job.Store, run func(*job.Job)) *Server 
 		store:     store,
 		startTime: time.Now(),
 		run:       run,
+		mock:      mock.NewController(),
 	}
 }
 
