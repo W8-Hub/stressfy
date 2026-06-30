@@ -78,7 +78,8 @@ paths:
       description: |
         Todos os campos de carga são opcionais — combine os que quiser; o job só
         estressa os recursos especificados. Query params também são aceitos e
-        mesclados ao corpo (corpo vence).
+        mesclados ao corpo (corpo vence). O corpo pode ser omitido, mas se enviado
+        precisa ser um JSON válido — um corpo malformado retorna 400.
       requestBody:
         required: false
         content:
@@ -107,7 +108,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/PublicJob"
         "400":
-          description: Request inválido
+          description: |
+            Request inválido — corpo presente mas não é um JSON válido
+            (`invalid_json_body`) ou `startAt` inválido.
           content:
             application/json:
               schema:
@@ -457,3 +460,4 @@ components:
       type: object
       properties:
         error: { type: string, example: job_not_found }
+        message: { type: string, description: Detalhe opcional do erro }

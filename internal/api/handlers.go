@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"runtime"
@@ -21,6 +22,13 @@ const mb = 1024 * 1024
 func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 	req, err := parseRequest(r)
 	if err != nil {
+		if errors.Is(err, errInvalidBody) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error":   "invalid_json_body",
+				"message": "request body is not valid JSON",
+			})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
 		return
 	}
